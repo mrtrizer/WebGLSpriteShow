@@ -154,7 +154,7 @@
                     image.onload = function () {
 						if (lastCoord.x + image.width > canvas.width)
 						{
-							lastCoord.y += maxHeight;
+							lastCoord.y += maxHeight + 1;
 							lastCoord.x = 0;
 							maxHeight = image.height;
 						}
@@ -209,7 +209,6 @@
                 mat4.identity(mvMatrix);
                 mat4.translate(mvMatrix, [sprite.x, sprite.y, sprite.z]);
                 mat4.rotate(mvMatrix, sprite.angle, [0.0,0.0,1.0]);
-                mat4.rotate(mvMatrix, Math.PI, [0.0,1.0,0.0]);
 
                 for (var i = 0; i < 6; i++)
                 {
