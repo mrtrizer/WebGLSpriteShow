@@ -1,0 +1,292 @@
+<html>
+<head>
+    <title>WebGL sprites</title>
+    <meta http-equiv="content-type" content="text/html; charset=windows-1252">
+    <script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+
+    <script id="shader-fs" type="x-shader/x-fragment">
+        precision mediump float; //medium float precision
+
+            varying vec2 vTextureCoord; //transport variable
+
+            uniform sampler2D uTexture; //texture
+
+        void main(void) {
+            //Calculate fragment color
+            gl_FragColor = vec4(texture2D(uTexture, vTextureCoord).rgba);//get color of current pixel
+        }
+    </script>
+
+    <script id="shader-vs" type="x-shader/x-vertex">
+        attribute vec3 aVertexPosition; //current vertex position
+        attribute vec2 aTextureCoord; //current pixel texture coord
+
+        uniform mat4 uMVMatrix; //move matrix
+        uniform mat4 uPMatrix; //perspective matrix
+        uniform sampler2D uTexture; //texture
+
+        varying vec2 vTextureCoord; //transport variable
+
+        void main(void) {
+                    //Calculate vertex position
+            gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+            vTextureCoord = aTextureCoord;
+        }
+    </script>
+
+    <script type="text/javascript">
+        var gl; //WebGL context
+        var shaderMemory = []; //Keeps addresses of shader programm variables
+        var glTexture;
+        var textureCoords;
+
+        //Find and compile shader
+        function getShader(id) {
+            var shaderScript = document.getElementById(id);
+            var shader;
+            if (shaderScript.type === "x-shader/x-fragment")
+                shader = gl.createShader(gl.FRAGMENT_SHADER);
+                    if (shaderScript.type === "x-shader/x-vertex") 
+                            shader = gl.createShader(gl.VERTEX_SHADER);
+
+            gl.shaderSource(shader, shaderScript.innerHTML);
+            gl.compileShader(shader);
+
+            console.log(gl.getShaderInfoLog(shader));
+
+            return shader;
+        }
+
+        //Link and install compiled shaders
+        function initShaders() {
+            //Create a shader program
+            var shaderProgram = gl.createProgram();
+            //Attach compiled shaders
+            gl.attachShader(shaderProgram, getShader("shader-vs"));
+            gl.attachShader(shaderProgram, getShader("shader-fs"));
+            //Link and install program to GPU
+            gl.linkProgram(shaderProgram);
+            gl.useProgram(shaderProgram);
+
+            //Get and save variable addresses
+            shaderMemory["aVertexPosition"] = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+            gl.enableVertexAttribArray(shaderMemory["aVertexPosition"]);
+            shaderMemory["aTextureCoord"] = gl.getAttribLocation(shaderProgram, "aTextureCoord");
+            gl.enableVertexAttribArray(shaderMemory["aTextureCoord"]);
+            shaderMemory["uPMatrix"] = gl.getUniformLocation(shaderProgram, "uPMatrix");
+            shaderMemory["uMVMatrix"] = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+            shaderMemory["uTexture"] = gl.getUniformLocation(shaderProgram, "uTexture");
+        }
+
+        function initTexture(image) {
+            glTexture = gl.createTexture();
+            glTexture.image = image;
+            gl.bindTexture(gl.TEXTURE_2D, glTexture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, glTexture.image);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);	
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+        }
+
+        function drawScene(scene) {
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            //Perspective matrix
+            var pMatrix = mat4.create();
+            mat4.perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 100.0, pMatrix);
+
+            //Move matrix
+            var mvMatrix = mat4.create();
+            mat4.identity(mvMatrix);
+            mat4.translate(mvMatrix, [0.0, 0.0, -3.0]);//x,y,z
+
+            //Transport matrixes to the shaiders
+            gl.uniformMatrix4fv(shaderMemory["uPMatrix"], false, pMatrix);
+            gl.uniformMatrix4fv(shaderMemory["uMVMatrix"], false, mvMatrix);
+
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D,glTexture);
+            gl.uniform1i(shaderMemory["uTexture"],0);
+
+            //TEXTURE ---------------
+                    //Bind the buffer to work with it
+            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+            var coords = scene.textureCoords;
+            //Move js array to the binded buffer
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(coords), gl.STATIC_DRAW);
+            var itemSize = 2; //three component
+            //Say to GL about our vertex list
+            gl.vertexAttribPointer(shaderMemory["aTextureCoord"], itemSize, gl.FLOAT, false, 0, 0);
+
+            //VERTICES ---------------
+            //Bind the buffer to work with it
+            gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+            //Move js array to the binded buffer
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(scene.vertexList), gl.STATIC_DRAW);
+            var itemSize = 3; //three component
+            //Say to GL about our vertex list
+            gl.vertexAttribPointer(shaderMemory["aVertexPosition"], itemSize, gl.FLOAT, false, 0, 0);
+
+            //And draw it
+            gl.drawArrays(gl.TRIANGLES, 0, scene.vertexList.length / itemSize);
+        }
+
+        function prepareSpriteList(list,onReady)
+        {
+            var canvas = document.createElement("canvas");
+            canvas.width = 512;
+            canvas.height = 512;
+            var context = canvas.getContext("2d");
+            var textureCoordList = {};
+            var lastCoord = {x: 0, y:0};
+            var n = list.length;
+            var maxHeight = 0;
+            for (var i in list)
+            {
+                (function () { //closure for image variable
+                    var imageName = list[i];
+                    var image = new Image();
+                    image.setAttribute('crossOrigin', 'anonymous');
+                    image.onload = function () {
+						if (lastCoord.x + image.width > canvas.width)
+						{
+							lastCoord.y += maxHeight;
+							lastCoord.x = 0;
+							maxHeight = image.height;
+						}
+						if (image.height > maxHeight)
+							maxHeight = image.height;
+                        context.drawImage(image, lastCoord.x, lastCoord.y);
+                        var coords = {
+                            x1:lastCoord.x / canvas.width,
+                            y1:lastCoord.y / canvas.height,
+                            x2:(lastCoord.x + image.width) / canvas.width,
+                            y2:(lastCoord.y + image.height) / canvas.height};
+                        textureCoordList[imageName] = {coords:[
+                            coords.x1,1.0 - coords.y2,
+                            coords.x2,1.0 - coords.y2,
+                            coords.x2,1.0 - coords.y1,
+                            coords.x1,1.0 - coords.y2,
+                            coords.x2,1.0 - coords.y1,
+                            coords.x1,1.0 - coords.y1], image: image};
+                        lastCoord.x += image.width + 1;
+
+                        n--;
+                        if (n === 0) //all images are loaded
+                        {
+                            var spriteList = new Image();
+                            spriteList.src = canvas.toDataURL();
+                            document.getElementById("sheet_container").appendChild(spriteList);
+							onReady(spriteList,textureCoordList);
+                        }
+                    };
+                    image.src = imageName;
+                })();
+            }
+        }
+
+        function initScene (spriteList,textureCoords)
+        {
+            var vertexList = [];
+            var textureList = [];
+            for (var j in spriteList)
+            {
+                var sprite = spriteList[j];
+                var curImage = textureCoords[sprite.image].image;
+                var vertexListTemplate = [
+                    0.0, 0.0, 0.0, //bottom left
+                    curImage.width / 200.0, 0.0, 0.0, //bottom right
+                    curImage.width / 200.0, curImage.height / 200.0, 0.0, //top right
+                    0.0, 0.0, 0.0, //bottom left
+                    curImage.width / 200.0, curImage.height / 200.0, 0.0, //top right
+                    0.0, curImage.height / 200.0, 0.0 //top left
+                ];
+                var mvMatrix = mat4.create();
+                mat4.identity(mvMatrix);
+                mat4.translate(mvMatrix, [sprite.x, sprite.y, 0.0]);
+                mat4.rotate(mvMatrix, sprite.angle, [0.0,0.0,1.0]);
+
+                for (var i = 0; i < 6; i++)
+                {
+                    var offset = i * 3;
+                    var vec3In = vec3.create();
+                    vec3In[0] = vertexListTemplate[offset];
+                    vec3In[1] = vertexListTemplate[offset + 1];
+                    vec3In[2] = vertexListTemplate[offset + 2];
+                    var vec3Out = vec3.create();
+                    mat4.multiplyVec3(mvMatrix,vec3In,vec3Out);
+                    vertexList = vertexList.concat([vec3Out[0],vec3Out[1],vec3Out[2]]);
+                };
+                textureList = textureList.concat(textureCoords[sprite.image].coords);
+            }
+            return {
+                textureCoords:textureList,
+                vertexList:vertexList};
+        }
+
+        function webGLStart() {
+            var canvas = document.getElementById("main_canvas");
+            gl = canvas.getContext("webgl");
+            gl.clearColor(1.0, 1.0, 1.0, 1.0);
+            gl.enable(gl.DEPTH_TEST);
+
+            initShaders();
+
+            prepareSpriteList(["house1.png", "house2.png", "house2.png","house1.png","house1.png"], function(image,textureCoords) {
+                initTexture(image);
+				this.textureCoords = textureCoords;
+				initSpriteList();
+                onNewFrame();
+            });
+        }
+
+		var n = 0.0;
+		
+		setInterval(function(){n+=0.01},10);
+		
+		var spriteList = [];
+		
+		function initSpriteList()
+		{
+			for (var i = 0; i < 100; i++)
+			{
+				spriteList[i] = {
+					x:-1 + Math.cos(n + i / 10), 
+					y:0  + Math.sin(n + i / 10), 
+					angle: 0 - n + i / 10, 
+					image: (i % 2 == 0)?"house1.png":"house2.png",
+					dirX: Math.random() > 0.5? 0.01 + Math.random() / 100: -0.01 + Math.random() / 100,
+					dirY: Math.random() > 0.5? 0.01 + Math.random() / 100: -0.01 + Math.random() / 100}
+			}
+		}
+		
+		function onNewFrame()
+		{	
+			for (var i = 0; i < spriteList.length; i++)
+			{
+				spriteList[i].x += spriteList[i].dirX;
+				spriteList[i].y += spriteList[i].dirY;
+				if (spriteList[i].x > 2)
+					spriteList[i].dirX = -spriteList[i].dirX;
+				if (spriteList[i].y > 2)
+					spriteList[i].dirY = -spriteList[i].dirY;
+				if (spriteList[i].x < -2)
+					spriteList[i].dirX = -spriteList[i].dirX;
+				if (spriteList[i].y < -2)
+					spriteList[i].dirY = -spriteList[i].dirY;
+			}
+			var scene = initScene(spriteList, textureCoords);
+            drawScene(scene);
+			window.requestAnimationFrame(onNewFrame);
+		}
+
+    </script>
+</head>
+<body onload="webGLStart();">
+    <canvas id="main_canvas" style="border: none;" width="1000" height="500"></canvas>
+    <div id="sheet_container">
+    </div>
+</body>
+</html>
