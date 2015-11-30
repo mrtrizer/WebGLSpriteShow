@@ -97,7 +97,9 @@
             gl.enable(gl.BLEND);
             //Perspective matrix
             var pMatrix = mat4.create();
-            mat4.perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 100.0, pMatrix);
+            //mat4.perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 100.0, pMatrix);
+            var k = 0.003;
+            mat4.ortho(-gl.canvas.width * k, gl.canvas.width * k, -gl.canvas.height * k, gl.canvas.height * k, 0.1, 100,pMatrix);
 
             //Move matrix
             var mvMatrix = mat4.create();
