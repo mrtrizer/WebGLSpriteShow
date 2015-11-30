@@ -92,7 +92,9 @@
         function drawScene(scene) {
             gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
+            gl.disable(gl.DEPTH_TEST);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.enable(gl.BLEND);
             //Perspective matrix
             var pMatrix = mat4.create();
             mat4.perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 100.0, pMatrix);
@@ -205,8 +207,9 @@
                 ];
                 var mvMatrix = mat4.create();
                 mat4.identity(mvMatrix);
-                mat4.translate(mvMatrix, [sprite.x, sprite.y, 0.0]);
+                mat4.translate(mvMatrix, [sprite.x, sprite.y, sprite.z]);
                 mat4.rotate(mvMatrix, sprite.angle, [0.0,0.0,1.0]);
+                mat4.rotate(mvMatrix, Math.PI, [0.0,1.0,0.0]);
 
                 for (var i = 0; i < 6; i++)
                 {
@@ -229,8 +232,9 @@
         function webGLStart() {
             var canvas = document.getElementById("main_canvas");
             gl = canvas.getContext("webgl");
-            gl.clearColor(1.0, 1.0, 1.0, 1.0);
-            gl.enable(gl.DEPTH_TEST);
+            gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            
+            
 
             initShaders();
 
@@ -254,7 +258,8 @@
 			{
 				spriteList[i] = {
 					x:-1 + Math.cos(n + i / 10), 
-					y:0  + Math.sin(n + i / 10), 
+					y:0  + Math.sin(n + i / 10),
+					z: Math.random(), 
 					angle: 0 - n + i / 10, 
 					image: (i % 2 == 0)?"house1.png":"house2.png",
 					dirX: Math.random() > 0.5? 0.01 + Math.random() / 100: -0.01 + Math.random() / 100,
