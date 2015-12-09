@@ -39,6 +39,8 @@
         var shaderMemory = []; //Keeps addresses of shader programm variables
         var glTexture;
         var textureCoords;
+        var pMatrix;
+		var mvMatrix;
 
         //Find and compile shader
         function getShader(id) {
@@ -90,21 +92,8 @@
         }
 
         function drawScene(scene) {
-            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
             gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-            gl.disable(gl.DEPTH_TEST);
-            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-            gl.enable(gl.BLEND);
-            //Perspective matrix
-            var pMatrix = mat4.create();
-            //mat4.perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 100.0, pMatrix);
-            var k = 0.003;
-            mat4.ortho(-gl.canvas.width * k, gl.canvas.width * k, -gl.canvas.height * k, gl.canvas.height * k, 0.1, 100,pMatrix);
-
-            //Move matrix
-            var mvMatrix = mat4.create();
-            mat4.identity(mvMatrix);
-            mat4.translate(mvMatrix, [0.0, 0.0, -3.0]);//x,y,z
+            
 
             //Transport matrixes to the shaiders
             gl.uniformMatrix4fv(shaderMemory["uPMatrix"], false, pMatrix);
@@ -212,6 +201,9 @@
                 mat4.translate(mvMatrix, [sprite.x, sprite.y, sprite.z]);
                 mat4.rotate(mvMatrix, sprite.angle, [0.0,0.0,1.0]);
 
+				sprite.firstVertex = vertexList.length;
+				sprite.vertexCount = 6;
+				
                 for (var i = 0; i < 6; i++)
                 {
                     var offset = i * 3;
@@ -226,6 +218,7 @@
                 textureList = textureList.concat(textureCoords[sprite.image].coords);
             }
             return {
+				spriteList: spriteList,
                 textureCoords:textureList,
                 vertexList:vertexList};
         }
@@ -234,56 +227,99 @@
             var canvas = document.getElementById("main_canvas");
             gl = canvas.getContext("webgl");
             gl.clearColor(0.0, 0.0, 0.0, 1.0);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+            gl.disable(gl.DEPTH_TEST);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.enable(gl.BLEND);
             
-            
+			//Perspective matrix
+			pMatrix = mat4.create();
+			//mat4.perspective(45, gl.canvas.width / gl.canvas.height, 0.1, 100.0, pMatrix);
+			var k = 0.003;
+			mat4.ortho(-gl.canvas.width * k, gl.canvas.width * k, -gl.canvas.height * k, gl.canvas.height * k, 0.1, 100,pMatrix);
+
+			//Move matrix
+			mvMatrix = mat4.create();
+			mat4.identity(mvMatrix);
+			mat4.translate(mvMatrix, [0.0, 0.0, -3.0]);//x,y,z
 
             initShaders();
 
-            prepareSpriteList(["house1.png", "house2.png", "house2.png","house1.png","house1.png"], function(image,textureCoords) {
+            prepareSpriteList(["star.png"], function(image,textureCoords) {
                 initTexture(image);
 				this.textureCoords = textureCoords;
 				initSpriteList();
+				scene = initScene(spriteList,textureCoords);
                 onNewFrame();
+                setInterval(checkBorders,50);
             });
         }
 
-		var n = 0.0;
+		function checkBorders()
+		{
+			for (var i = 0; i < scene.spriteList.length; i++) {
+				if (Math.abs(scene.spriteList[i].x) > 2)
+					scene.spriteList[i].dirX = -scene.spriteList[i].dirX;
+				if (Math.abs(scene.spriteList[i].y) > 2)
+					scene.spriteList[i].dirY = -scene.spriteList[i].dirY;
+			}
+		}
 		
-		setInterval(function(){n+=0.01},10);
-		
-		var spriteList = [];
+		var N = 7000;
+		var spriteList = new Array(N);
+		var scene = null;
 		
 		function initSpriteList()
 		{
-			for (var i = 0; i < 100; i++)
+			for (var i = 0; i < N; i++)
 			{
 				spriteList[i] = {
-					x:-1 + Math.cos(n + i / 10), 
-					y:0  + Math.sin(n + i / 10),
-					z: Math.random(), 
-					angle: 0 - n + i / 10, 
-					image: (i % 2 == 0)?"house1.png":"house2.png",
-					dirX: Math.random() > 0.5? 0.01 + Math.random() / 100: -0.01 + Math.random() / 100,
-					dirY: Math.random() > 0.5? 0.01 + Math.random() / 100: -0.01 + Math.random() / 100}
+					x:0, 
+					y:0,
+					z: 0, 
+					angle: 0 - i / 10, 
+					image: "star.png",
+					dirX:Math.random() / 50,
+					dirY:Math.random() / 50}
 			}
+		}
+
+		
+		function move(scene,n,dX, dY)
+		{
+			var sprite = scene.spriteList[n];
+			sprite.x += dX;
+			sprite.y += dY;
+			//var mvMatrix = mat4.create();
+			//mat4.identity(mvMatrix);
+			//mat4.translate(mvMatrix, [dX, dY, 0]);
+			
+			for (var i = 0; i < sprite.vertexCount; i++)
+			{
+				var offset = sprite.firstVertex + i * 3;
+				
+				scene.vertexList[offset] = scene.vertexList[offset] + dX;
+				scene.vertexList[offset + 1] = scene.vertexList[offset + 1] + dY;
+				
+				//var vec3In = vec3.create();
+				//vec3In[0] = scene.vertexList[offset];
+				//vec3In[1] = scene.vertexList[offset + 1];
+				//vec3In[2] = scene.vertexList[offset + 2];
+				//var vec3Out = vec3.create();
+				//mat4.multiplyVec3(mvMatrix,vec3In,vec3Out);
+				//scene.vertexList[offset] = vec3Out[0];
+				//scene.vertexList[offset + 1] = vec3Out[1];
+				//scene.vertexList[offset + 2] = vec3Out[2];
+			};
 		}
 		
 		function onNewFrame()
 		{	
-			for (var i = 0; i < spriteList.length; i++)
+			for (var i = 0; i < scene.spriteList.length; i++)
 			{
-				spriteList[i].x += spriteList[i].dirX;
-				spriteList[i].y += spriteList[i].dirY;
-				if (spriteList[i].x > 2)
-					spriteList[i].dirX = -spriteList[i].dirX;
-				if (spriteList[i].y > 2)
-					spriteList[i].dirY = -spriteList[i].dirY;
-				if (spriteList[i].x < -2)
-					spriteList[i].dirX = -spriteList[i].dirX;
-				if (spriteList[i].y < -2)
-					spriteList[i].dirY = -spriteList[i].dirY;
+				move(scene,i,scene.spriteList[i].dirX,scene.spriteList[i].dirY);
 			}
-			var scene = initScene(spriteList, textureCoords);
+			
             drawScene(scene);
 			window.requestAnimationFrame(onNewFrame);
 		}
@@ -291,7 +327,7 @@
     </script>
 </head>
 <body onload="webGLStart();">
-    <canvas id="main_canvas" style="border: none;" width="1000" height="500"></canvas>
+    <canvas id="main_canvas" style="border: none;" width="500" height="500"></canvas>
     <div id="sheet_container">
     </div>
 </body>
