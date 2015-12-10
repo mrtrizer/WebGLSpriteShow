@@ -251,12 +251,16 @@
 				initSpriteList();
 				scene = initScene(spriteList,textureCoords);
                 onNewFrame();
-                setInterval(checkBorders,50);
+                setInterval(checkBorders,30);
             });
         }
 
 		function checkBorders()
 		{
+			for (var i = 0; i < scene.spriteList.length; i++)
+			{
+				move(scene,i,scene.spriteList[i].dirX,scene.spriteList[i].dirY);
+			}
 			for (var i = 0; i < scene.spriteList.length; i++) {
 				if (Math.abs(scene.spriteList[i].x) > 2)
 					scene.spriteList[i].dirX = -scene.spriteList[i].dirX;
@@ -265,22 +269,24 @@
 			}
 		}
 		
-		var N = 7000;
-		var spriteList = new Array(N);
+		var N = 5000;
+		var spriteList = [];
 		var scene = null;
 		
 		function initSpriteList()
 		{
+			var spriteListTemplate = [];
 			for (var i = 0; i < N; i++)
 			{
-				spriteList[i] = {
-					x:0, 
-					y:0,
-					z: 0, 
-					angle: 0 - i / 10, 
+				var rand = Math.random();
+				spriteList.push( {
+					x:1 - Math.cos(rand), 
+					y:Math.sin(rand),
+					z:0, 
+					angle: 0, 
 					image: "star.png",
-					dirX:Math.random() / 50,
-					dirY:Math.random() / 50}
+					dirX: rand  / 20,
+					dirY: rand  / 20});
 			}
 		}
 
@@ -314,12 +320,7 @@
 		}
 		
 		function onNewFrame()
-		{	
-			for (var i = 0; i < scene.spriteList.length; i++)
-			{
-				move(scene,i,scene.spriteList[i].dirX,scene.spriteList[i].dirY);
-			}
-			
+		{				
             drawScene(scene);
 			window.requestAnimationFrame(onNewFrame);
 		}
